@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ColorPicker?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.Menu?>
+<?import javafx.scene.control.MenuBar?>
+<?import javafx.scene.control.MenuItem?>
+<?import javafx.scene.control.Separator?>
+<?import javafx.scene.control.Spinner?>
+<?import javafx.scene.control.SpinnerValueFactory?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Pane?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.example.diagram_mindmap_builder.controller.MainController">
+
+    <!-- Top MenuBar -->
+    <top>
+        <MenuBar>
+            <Menu text="File">
+                <MenuItem text="New"/>
+                <MenuItem text="Open"/>
+                <MenuItem text="Save"/>
+                <MenuItem text="Exit"/>
+            </Menu>
+            <Menu text="Edit">
+                <MenuItem text="Undo"/>
+                <MenuItem text="Redo"/>
+                <MenuItem text="Delete"/>
+            </Menu>
+            <Menu text="View">
+                <MenuItem text="Zoom In"/>
+                <MenuItem text="Zoom Out"/>
+            </Menu>
+            <Menu text="Help">
+                <MenuItem text="About"/>
+            </Menu>
+        </MenuBar>
+    </top>
+
+    <!-- Left toolbar -->
+    <left>
+        <VBox spacing="10">
+            <padding>
+                <Insets top="10" right="10" bottom="10" left="10"/>
+            </padding>
+            <Label text="Tools:"/>
+            <Button fx:id="btnAddCircle" text="Add Circle" maxWidth="Infinity"/>
+            <Button fx:id="btnAddRect" text="Add Rectangle" maxWidth="Infinity"/>
+            <Separator/>
+            <Label text="Zoom:"/>
+            <HBox spacing="5">
+                <Button fx:id="btnZoomIn" text="+"/>
+                <Button fx:id="btnZoomOut" text="-"/>
+            </HBox>
+        </VBox>
+    </left>
+
+    <!-- Center canvas -->
+    <center>
+        <Pane fx:id="canvasPane" style="-fx-background-color: white; -fx-border-color: #ccc;">
+            <!-- Canvas trắng để vẽ NodeView -->
+        </Pane>
+    </center>
+
+    <!-- Right property pane -->
+    <right>
+        <VBox spacing="10">
+            <padding>
+                <Insets top="10" right="10" bottom="10" left="10"/>
+            </padding>
+            <Label text="Properties" style="-fx-font-weight: bold;"/>
+            <Label fx:id="lblNoSelection" text="No selection"/>
+            <Label text="Label:"/>
+            <TextField fx:id="tfLabel" disable="true"/>
+            <Label text="Fill Color:"/>
+            <ColorPicker fx:id="cpFill" disable="true"/>
+            <Label text="Stroke Color:"/>
+            <ColorPicker fx:id="cpStroke" disable="true"/>
+            <Label text="Stroke Width:"/>
+            <Spinner fx:id="spStrokeWidth" disable="true"/>
+            <Label text="Size:"/>
+            <HBox spacing="5">
+                <Label text="W:"/>
+                <Spinner fx:id="spWidth" disable="true"/>
+                <Label text="H:"/>
+                <Spinner fx:id="spHeight" disable="true"/>
+            </HBox>
+        </VBox>
+    </right>
+
+    <!-- Bottom status bar -->
+    <bottom>
+        <Label fx:id="statusBar" text="Ready">
+            <padding>
+                <Insets top="5" right="5" bottom="5" left="5"/>
+            </padding>
+            <style>
+                -fx-background-color: #e0e0e0;
+            </style>
+        </Label>
+    </bottom>
+
+</BorderPane>
