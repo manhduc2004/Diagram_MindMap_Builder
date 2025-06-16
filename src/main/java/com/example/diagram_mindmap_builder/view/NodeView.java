@@ -2,6 +2,8 @@ package com.example.diagram_mindmap_builder.view;
 
 import com.example.diagram_mindmap_builder.model.NodeModel;
 import com.example.diagram_mindmap_builder.model.NodeType;
+import javafx.beans.property.BooleanProperty;
+import javafx.beans.property.IntegerProperty;
 import javafx.geometry.Point2D;
 import javafx.geometry.Pos;
 import javafx.scene.input.MouseEvent;
@@ -10,22 +12,34 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.shape.Shape;
+import javafx.scene.text.Font;
 import javafx.scene.text.Text;
 import javafx.scene.effect.DropShadow;
 import javafx.scene.paint.Color;
+
+import java.util.function.Supplier;
 
 import static org.controlsfx.tools.Utils.clamp;
 
 public class NodeView extends StackPane{
     private final NodeModel model;
     private final Pane canvasPane;
-
+    private final javafx.scene.Group contentGroup;
+    private final BooleanProperty snapToGrid;
+    private final IntegerProperty gridSize;
+    private final Supplier<Double> zoomSupplier;
     private double dragOffsetX;
     private double dragOffsetY;
 
-    public NodeView(NodeModel model, Pane canvasPane){
+    public NodeView(NodeModel model, Pane canvasPane, javafx.scene.Group contentGroup,
+                    BooleanProperty snapToGrid, IntegerProperty gridSize,
+                    Supplier<Double> zoomSupplier){
         this.model = model;
         this.canvasPane = canvasPane;
+        this.contentGroup = contentGroup;
+        this.snapToGrid = snapToGrid;
+        this.gridSize = gridSize;
+        this.zoomSupplier = zoomSupplier;
 
         this.setAlignment(Pos.CENTER);
 
@@ -60,6 +74,8 @@ public class NodeView extends StackPane{
         //tạo label
         Text label = new Text();
         label.textProperty().bind(model.textProperty());
+        model.fontSizeProperty().addListener((obs, old, ni) -> label.setFont(Font.font(ni.doubleValue())));
+        label.setFont(Font.font(model.getFontSize()));
 
         this.getChildren().addAll(shape, label);
 
@@ -92,19 +108,26 @@ public class NodeView extends StackPane{
         });
 
         this.addEventFilter(MouseEvent.MOUSE_DRAGGED, evt -> {
-            Point2D parentCoord = canvasPane.sceneToLocal(evt.getSceneX(), evt.getSceneY());
-            double rawX = parentCoord.getX() - dragOffsetX;
-            double rawY = parentCoord.getY() - dragOffsetY;
+            Point2D p = contentGroup.sceneToLocal(evt.getSceneX(), evt.getSceneY());
+            double rawX = p.getX() - dragOffsetX;
+            double rawY = p.getY() - dragOffsetY;
 
-            double canvasW = canvasPane.getWidth();
-            double canvasH = canvasPane.getHeight();
+            double zoom = zoomSupplier.get();
+            double contentW = canvasPane.getWidth() / zoom;
+            double contentH = canvasPane.getHeight() / zoom;
             double halfW = model.getWidth() / 2.0;
-            double halfH = model.getType() == NodeType.Circle
-                    ? (model.getWidth() / 2.0)
-                    : (model.getHeight() / 2.0);
+            double halfH = (model.getType() == NodeType.Circle) ? halfW : (model.getHeight() / 2.0);
 
-            double clampedX = clamp(rawX, halfW, canvasW - halfW);
-            double clampedY = clamp(rawY, halfH, canvasH - halfH);
+            double clampedX = clamp(rawX, halfW, contentW - halfW);
+            double clampedY = clamp(rawY, halfH, contentH - halfH);
+
+            if (snapToGrid.get()) {
+                int gs = gridSize.get();
+                clampedX = Math.round(clampedX / gs) * gs;
+                clampedY = Math.round(clampedY / gs) * gs;
+                clampedX = clamp(clampedX, halfW, contentW - halfW);
+                clampedY = clamp(clampedY, halfH, contentH - halfH);
+            }
 
             model.setX(clampedX);
             model.setY(clampedY);

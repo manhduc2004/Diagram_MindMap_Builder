@@ -14,6 +14,7 @@ public abstract class NodeModel {
     private final ObjectProperty<Color> strokeColor = new SimpleObjectProperty<>(Color.BLACK);
     private final DoubleProperty strokeWidth = new SimpleDoubleProperty(1.0);
     private final StringProperty text = new SimpleStringProperty("");
+    private final DoubleProperty fontSize = new SimpleDoubleProperty(12.0);
 
     public NodeModel(){
         this.id = UUID.randomUUID().toString();
@@ -112,6 +113,17 @@ public abstract class NodeModel {
     }
     public void setText(String value) {
         text.set(value);
+    }
+
+    //font size
+    public double getFontSize() {
+        return fontSize.get();
+    }
+    public DoubleProperty fontSizeProperty() {
+        return fontSize;
+    }
+    public void setFontSize(double value) {
+        fontSize.set(value);
     }
 
     public abstract NodeType getType();
