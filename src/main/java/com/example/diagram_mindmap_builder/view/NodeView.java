@@ -41,7 +41,15 @@ public class NodeView extends StackPane{
         this.gridSize = gridSize;
         this.zoomSupplier = zoomSupplier;
 
+        model.xProperty().addListener((obs, oldVal, newVal) -> {
+            System.out.println("[NodeView Debug] model " + model.getId() +
+                    " x changed from " + oldVal + " to " + newVal);
+        });
+
         this.setAlignment(Pos.CENTER);
+
+        // Cho phép nhận event chuột toàn vùng bounds, không chỉ vùng có shape
+        this.setPickOnBounds(true);
 
         Shape shape;
         if(model.getType() == NodeType.Circle){
@@ -87,51 +95,70 @@ public class NodeView extends StackPane{
             this.layoutYProperty().bind(model.yProperty().subtract(model.heightProperty().divide(2)));
         }
 
-        this.setOnMousePressed(event -> {
-            this.setScaleX(1.05);
-            this.setScaleY(1.05);
-        });
-        this.setOnMouseExited(event -> {
-            this.setScaleX(1.0);
-            this.setScaleY(1.0);
-        });
+//        this.setOnMousePressed(event -> {
+//            this.setScaleX(1.05);
+//            this.setScaleY(1.05);
+//        });
+//        this.setOnMouseExited(event -> {
+//            this.setScaleX(1.0);
+//            this.setScaleY(1.0);
+//        });
 
-        enableDrag();
+        enableDragAndSelect();
     }
 
-    private void enableDrag() {
-        this.addEventFilter(MouseEvent.MOUSE_PRESSED, event -> {
-            Point2D parentCoord = canvasPane.sceneToLocal(event.getSceneX(), event.getSceneY());
-            dragOffsetX = parentCoord.getX() - model.getX();
-            dragOffsetY = parentCoord.getY() - model.getY();
-            event.consume();
+    private void enableDragAndSelect() {
+        this.addEventHandler(MouseEvent.MOUSE_PRESSED, evt -> {
+            Point2D p = contentGroup.sceneToLocal(evt.getSceneX(), evt.getSceneY());
+            dragOffsetX = p.getX() - model.getX();
+            dragOffsetY = p.getY() - model.getY();
+            // Không evt.consume() ở đây
         });
 
-        this.addEventFilter(MouseEvent.MOUSE_DRAGGED, evt -> {
+        this.addEventHandler(MouseEvent.MOUSE_DRAGGED, evt -> {
             Point2D p = contentGroup.sceneToLocal(evt.getSceneX(), evt.getSceneY());
             double rawX = p.getX() - dragOffsetX;
             double rawY = p.getY() - dragOffsetY;
 
             double zoom = zoomSupplier.get();
-            double contentW = canvasPane.getWidth() / zoom;
-            double contentH = canvasPane.getHeight() / zoom;
+            double viewW = canvasPane.getWidth();
+            double viewH = canvasPane.getHeight();
             double halfW = model.getWidth() / 2.0;
             double halfH = (model.getType() == NodeType.Circle) ? halfW : (model.getHeight() / 2.0);
 
-            double clampedX = clamp(rawX, halfW, contentW - halfW);
-            double clampedY = clamp(rawY, halfH, contentH - halfH);
+            double maxX, maxY;
+            if (zoom >= 1.0) {
+                maxX = viewW / zoom - halfW;
+                maxY = viewH / zoom - halfH;
+            } else {
+                // Khi zoom<1, clamp theo vùng visible thực tế để tránh logic mở rộng vùng clamp
+                maxX = viewW - halfW;
+                maxY = viewH - halfH;
+            }
+            double clampedX = clamp(rawX, halfW, maxX);
+            double clampedY = clamp(rawY, halfH, maxY);
 
             if (snapToGrid.get()) {
                 int gs = gridSize.get();
                 clampedX = Math.round(clampedX / gs) * gs;
                 clampedY = Math.round(clampedY / gs) * gs;
-                clampedX = clamp(clampedX, halfW, contentW - halfW);
-                clampedY = clamp(clampedY, halfH, contentH - halfH);
+                clampedX = clamp(clampedX, halfW, maxX);
+                clampedY = clamp(clampedY, halfH, maxY);
             }
+
+            System.out.println("[NodeView] Drag node id=" + model.getId()
+                    + " raw=(" + String.format("%.1f", rawX) + "," + String.format("%.1f", rawY) + ")"
+                    + " clamped=(" + String.format("%.1f", clampedX) + "," + String.format("%.1f", clampedY) + ")");
 
             model.setX(clampedX);
             model.setY(clampedY);
+
             evt.consume();
+        });
+
+
+        this.addEventHandler(MouseEvent.MOUSE_RELEASED, evt -> {
+
         });
     }
 
