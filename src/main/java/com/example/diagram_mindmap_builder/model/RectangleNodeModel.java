@@ -1,10 +1,7 @@
 package com.example.diagram_mindmap_builder.model;
 
 public class RectangleNodeModel extends NodeModel{
-    public RectangleNodeModel(){
-        super();
-    }
-
+    @Override
     public NodeType getType(){
         return NodeType.Rectangle;
     }

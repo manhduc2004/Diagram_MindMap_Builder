@@ -1,5 +1,6 @@
 package com.example.diagram_mindmap_builder.controller;
 
+import com.example.diagram_mindmap_builder.builder.NodeDirector;
 import com.example.diagram_mindmap_builder.factory.NodeFactory;
 import com.example.diagram_mindmap_builder.model.NodeModel;
 import com.example.diagram_mindmap_builder.model.NodeType;
@@ -28,26 +29,17 @@ public class MainController {
     @FXML private Pane canvasPane;
     @FXML private Group contentGroup;
 
-    @FXML private Button btnAddCircle;
-    @FXML private Button btnAddRect;
-    @FXML private Button btnDelete;
-    @FXML private Button btnZoomIn;
-    @FXML private Button btnZoomOut;
+    @FXML private Button btnAddCircle, btnAddRect, btnDelete, btnZoomIn, btnZoomOut;
 
-    @FXML private Label lblNoSelection;
+    @FXML private Label lblNoSelection, lblStatus, lblZoomLevel, lblCoordinates;;
     @FXML private TextField tfLabel;
-    @FXML private Spinner<Double> spFontSize;
-    @FXML private ColorPicker cpFill;
-    @FXML private ColorPicker cpStroke;
-    @FXML private Spinner<Double> spStrokeWidth;
+    @FXML private Spinner<Double> spFontSize, spStrokeWidth;
+    @FXML private ColorPicker cpFill, cpStroke;
     @FXML private ComboBox<String> cbShape;
     @FXML private CheckBox chkSnap;
     @FXML private Spinner<Integer> spGridSize;
 
-    @FXML private Label lblStatus;
-    @FXML private Label lblZoomLevel;
-    @FXML private Label lblCoordinates;
-
+    private IntegerProperty gridSizePop;
     private Canvas gridCanvas;
     private double zoomFactor = 1.0;
 
@@ -62,10 +54,12 @@ public class MainController {
         // Debug injection: đảm bảo không null
         System.out.println("canvasPane=" + canvasPane + ", contentGroup=" + contentGroup + ", spFontSize=" + spFontSize);
 
+        gridSizePop = new SimpleIntegerProperty();
         // Spinner factories
         spFontSize.setValueFactory(new SpinnerValueFactory.DoubleSpinnerValueFactory(6, 72, 12, 1));
         spStrokeWidth.setValueFactory(new SpinnerValueFactory.DoubleSpinnerValueFactory(0.1, 20, 1, 0.5));
         spGridSize.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(5, 200, 20, 5));
+        gridSizePop.bind(spGridSize.getValueFactory().valueProperty());
 
         cbShape.getItems().addAll("Circle", "Rectangle");
         setPropertyPaneDisabled(true);
@@ -195,12 +189,12 @@ public class MainController {
 
     /** Thêm node mới */
     private void addNode(NodeType type) {
-        NodeModel model = NodeFactory.createNode(type);
-        model.setText(type.name());
-        model.setFillColor(Color.LIGHTBLUE);
-        model.setStrokeColor(Color.DARKBLUE);
-        model.setStrokeWidth(2.0);
-        model.setFontSize(12);
+        NodeModel model = NodeDirector.makeDefault(type);
+//        model.setText(type.name());
+//        model.setFillColor(Color.LIGHTBLUE);
+//        model.setStrokeColor(Color.DARKBLUE);
+//        model.setStrokeWidth(2.0);
+//        model.setFontSize(12);
 
 
         //debug
@@ -215,7 +209,7 @@ public class MainController {
                     + " to " + String.format("%.1f", newVal.doubleValue()));
         });
 
-        NodeView view = new NodeView(model, canvasPane, contentGroup, snapToGrid, gridSize, () -> zoomFactor);
+        NodeView view = new NodeView(model, canvasPane, contentGroup,chkSnap.selectedProperty(), gridSizePop, () -> zoomFactor);
         // Gắn handler chọn node
         view.setOnMouseClicked(evt -> {
             selectNodeView(view);
@@ -307,7 +301,7 @@ public class MainController {
         NodeType newType = shapeName.equals("Circle") ? NodeType.Circle : NodeType.Rectangle;
         if (oldType == newType) return;
 
-        NodeModel newModel = NodeFactory.createNode(newType);
+        NodeModel newModel = NodeDirector.makeDefault(newType);
         newModel.setX(oldModel.getX());
         newModel.setY(oldModel.getY());
         newModel.setWidth(oldModel.getWidth());
@@ -318,7 +312,7 @@ public class MainController {
         newModel.setStrokeWidth(oldModel.getStrokeWidth());
         newModel.setFontSize(oldModel.getFontSize());
 
-        NodeView newView = new NodeView(newModel, canvasPane, contentGroup, snapToGrid, gridSize, () -> zoomFactor);
+        NodeView newView = new NodeView(newModel, canvasPane, contentGroup,chkSnap.selectedProperty(), gridSizePop, () -> zoomFactor);
         newView.setOnMouseClicked(evt -> {
             selectNodeView(newView);
             evt.consume();

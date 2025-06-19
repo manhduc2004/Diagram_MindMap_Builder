@@ -6,6 +6,7 @@ import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.IntegerProperty;
 import javafx.geometry.Point2D;
 import javafx.geometry.Pos;
+import javafx.scene.Group;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.StackPane;
@@ -19,8 +20,6 @@ import javafx.scene.paint.Color;
 
 import java.util.function.Supplier;
 
-import static org.controlsfx.tools.Utils.clamp;
-
 public class NodeView extends StackPane{
     private final NodeModel model;
     private final Pane canvasPane;
@@ -31,7 +30,7 @@ public class NodeView extends StackPane{
     private double dragOffsetX;
     private double dragOffsetY;
 
-    public NodeView(NodeModel model, Pane canvasPane, javafx.scene.Group contentGroup,
+    public NodeView(NodeModel model, Pane canvasPane, Group contentGroup,
                     BooleanProperty snapToGrid, IntegerProperty gridSize,
                     Supplier<Double> zoomSupplier){
         this.model = model;

@@ -5,22 +5,16 @@ import javafx.scene.paint.*;
 import java.util.*;
 
 public abstract class NodeModel {
-    private final String id;
+    private final String id = UUID.randomUUID().toString();
     private final DoubleProperty x = new SimpleDoubleProperty();
     private final DoubleProperty y = new SimpleDoubleProperty();
-    private final DoubleProperty width = new SimpleDoubleProperty();
-    private final DoubleProperty height = new SimpleDoubleProperty();
+    private final DoubleProperty width = new SimpleDoubleProperty(80);
+    private final DoubleProperty height = new SimpleDoubleProperty(40);
     private final ObjectProperty<Color> fillColor = new SimpleObjectProperty<>(Color.LIGHTGRAY);
     private final ObjectProperty<Color> strokeColor = new SimpleObjectProperty<>(Color.BLACK);
     private final DoubleProperty strokeWidth = new SimpleDoubleProperty(1.0);
     private final StringProperty text = new SimpleStringProperty("");
     private final DoubleProperty fontSize = new SimpleDoubleProperty(12.0);
-
-    public NodeModel(){
-        this.id = UUID.randomUUID().toString();
-        width.set(80);
-        height.set(40);
-    }
 
     //id
     public String getId() {
@@ -127,17 +121,4 @@ public abstract class NodeModel {
     }
 
     public abstract NodeType getType();
-
-    @Override
-    public String toString(){
-        return "NodeModel{" +
-                "id='" + id + '\'' +
-                ", type=" + getType() +
-                ", x=" + getX() +
-                ", y=" + getY() +
-                ", w=" + getWidth() +
-                ", h=" + getHeight() +
-                ", text=" + getText() +
-                '}';
-    }
 }
