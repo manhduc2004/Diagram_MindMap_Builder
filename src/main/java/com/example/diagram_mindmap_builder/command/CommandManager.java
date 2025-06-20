@@ -11,6 +11,7 @@ public class CommandManager {
     private final Deque<Command> redoStack = new ArrayDeque<>();
     private final BooleanProperty canUndo = new SimpleBooleanProperty(false);
     private final BooleanProperty canRedo = new SimpleBooleanProperty(false);
+    private Runnable onChangeListener;
 
     public void executeCommand(Command command) {
         command.execute();
@@ -56,4 +57,18 @@ public class CommandManager {
         return redoStack.isEmpty() ? "" : redoStack.peek().getName();
     }
 
+    public void clear() {
+        undoStack.clear();
+        redoStack.clear();
+        notifyChange();
+    }
+    /** Thiết lập listener để gọi khi stack thay đổi, ví dụ enable/disable menu. */
+    public void setOnChangeListener(Runnable listener) {
+        this.onChangeListener = listener;
+    }
+    private void notifyChange() {
+        if (onChangeListener != null) {
+            onChangeListener.run();
+        }
+    }
 }

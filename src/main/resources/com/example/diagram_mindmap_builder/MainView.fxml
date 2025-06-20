@@ -19,6 +19,7 @@
 <?import javafx.scene.layout.VBox?>
 
 <?import javafx.scene.control.SeparatorMenuItem?>
+<?import javafx.scene.control.ListView?>
 <BorderPane xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml"
             fx:controller="com.example.diagram_mindmap_builder.controller.MainController">
 
@@ -30,6 +31,11 @@
                 <MenuItem text="Open"/>
                 <MenuItem text="Save"/>
                 <MenuItem text="Exit"/>
+                <SeparatorMenuItem/>
+                <MenuItem fx:id="menuSaveJson" text="Save JSON"/>
+                <MenuItem fx:id="menuLoadJson" text="Load JSON"/>
+                <MenuItem fx:id="menuSaveXml" text="Save XML"/>
+                <MenuItem fx:id="menuLoadXml" text="Load XML"/>
             </Menu>
             <Menu text="Edit">
                 <MenuItem fx:id="menuUndo" text="Undo" accelerator="CTRL+Z"/>
@@ -40,6 +46,14 @@
             <Menu text="View">
                 <MenuItem text="Zoom In"/>
                 <MenuItem text="Zoom Out"/>
+            </Menu>
+            <Menu text="Export">
+                <MenuItem fx:id="menuExportPng" text="Export PNG"/>
+                <MenuItem fx:id="menuExportSvg" text="Export SVG"/>
+            </Menu>
+            <Menu text="Layout">
+                <MenuItem fx:id="menuLayoutTree" text="Tree Layout"/>
+                <MenuItem fx:id="menuLayoutRadial" text="Radial Layout"/>
             </Menu>
             <Menu text="Help">
                 <MenuItem text="About"/>
@@ -101,6 +115,8 @@
             <CheckBox fx:id="chkSnap" text="Snap to grid"/>
             <Label text="Grid Size:"/>
             <Spinner fx:id="spGridSize"/>
+            <Label text="Template Library" style="-fx-font-weight: bold;"/>
+            <ListView fx:id="templateListView" prefWidth="150"/>
         </VBox>
     </right>
 

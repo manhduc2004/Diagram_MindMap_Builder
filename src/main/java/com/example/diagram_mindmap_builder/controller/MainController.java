@@ -3,10 +3,17 @@ package com.example.diagram_mindmap_builder.controller;
 import com.example.diagram_mindmap_builder.builder.NodeDirector;
 import com.example.diagram_mindmap_builder.command.*;
 import com.example.diagram_mindmap_builder.factory.NodeFactory;
+import com.example.diagram_mindmap_builder.layout.RadialLayoutStrategy;
+import com.example.diagram_mindmap_builder.layout.TreeLayoutStrategy;
 import com.example.diagram_mindmap_builder.model.EdgeModel;
 import com.example.diagram_mindmap_builder.model.GraphModel;
 import com.example.diagram_mindmap_builder.model.NodeModel;
 import com.example.diagram_mindmap_builder.model.NodeType;
+import com.example.diagram_mindmap_builder.persistence.JSONStrategy;
+import com.example.diagram_mindmap_builder.persistence.PersistenceManager;
+import com.example.diagram_mindmap_builder.persistence.SvgExporter;
+import com.example.diagram_mindmap_builder.persistence.XMLStrategy;
+import com.example.diagram_mindmap_builder.ui.NodeTemplate;
 import com.example.diagram_mindmap_builder.view.NodeView;
 import javafx.application.Platform;
 import javafx.beans.binding.Binding;
@@ -16,18 +23,29 @@ import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.collections.ListChangeListener;
+import javafx.embed.swing.SwingFXUtils;
 import javafx.fxml.FXML;
 import javafx.geometry.Point2D;
 import javafx.scene.Group;
+import javafx.scene.SnapshotParameters;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.*;
+import javafx.scene.image.WritableImage;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.Pane;
 import javafx.scene.shape.Line;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.paint.Color;
+import javafx.stage.FileChooser;
 
+import javax.imageio.ImageIO;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -35,9 +53,11 @@ public class MainController {
 
     @FXML private Pane canvasPane;
     @FXML private Group contentGroup;
-
+    @FXML private ListView<NodeTemplate> templateListView;
     @FXML private Button btnAddCircle, btnAddRect, btnDelete, btnZoomIn, btnZoomOut, btnConnect;
-
+    @FXML private MenuItem menuSaveJson, menuLoadJson, menuSaveXml, menuLoadXml;
+    @FXML private MenuItem menuExportPng, menuExportSvg;
+    @FXML private MenuItem menuLayoutTree, menuLayoutRadial;
     @FXML private Label lblNoSelection, lblStatus, lblZoomLevel, lblCoordinates;;
     @FXML private TextField tfLabel;
     @FXML private Spinner<Double> spFontSize, spStrokeWidth;
@@ -49,7 +69,7 @@ public class MainController {
 
     private GraphModel graphModel;
     private CommandManager commandManager;
-
+    private PersistenceManager persistenceManager;
     private IntegerProperty gridSizePop;
     private Canvas gridCanvas;
     private double zoomFactor = 1.0;
@@ -67,6 +87,7 @@ public class MainController {
     public void initialize() {
         graphModel = new GraphModel();
         commandManager = new CommandManager();
+        persistenceManager = new PersistenceManager(new JSONStrategy());
 
         // Thiết lập menu Undo/Redo/Delete
         menuUndo.disableProperty().bind(commandManager.canUndoProperty().not());
@@ -304,6 +325,127 @@ public class MainController {
                 lblStatus.setText("Changed shape");
             }
         });
+
+        // Setup Template Library
+        if (templateListView != null) {
+            NodeTemplate.setupTemplateListView(templateListView, canvasPane, contentGroup, graphModel, commandManager, lblStatus);
+        }
+
+        // FileChooser Save/Load JSON
+        menuSaveJson.setOnAction(evt -> {
+            FileChooser fc = new FileChooser();
+            fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON Files","*.json"));
+            File file = fc.showSaveDialog(canvasPane.getScene().getWindow());
+            if (file != null) {
+                persistenceManager.setSerializer(new JSONStrategy());
+                try {
+                    persistenceManager.save(graphModel, file);
+                    lblStatus.setText("Saved JSON: " + file.getName());
+                } catch (IOException e) {
+                    lblStatus.setText("Error saving JSON: " + e.getMessage());
+                }
+            }
+        });
+        menuLoadJson.setOnAction(evt -> {
+            FileChooser fc = new FileChooser();
+            fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON Files","*.json"));
+            File file = fc.showOpenDialog(canvasPane.getScene().getWindow());
+            if (file != null) {
+                persistenceManager.setSerializer(new JSONStrategy());
+                try {
+                    persistenceManager.load(graphModel, file, () -> clearAll());
+                    lblStatus.setText("Loaded JSON: " + file.getName());
+                } catch (IOException e) {
+                    lblStatus.setText("Error loading JSON: " + e.getMessage());
+                }
+            }
+        });
+        // Save/Load XML via Jackson XML
+        menuSaveXml.setOnAction(evt -> {
+            FileChooser fc = new FileChooser();
+            fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("XML Files","*.xml"));
+            File file = fc.showSaveDialog(canvasPane.getScene().getWindow());
+            if (file != null) {
+                persistenceManager.setSerializer(new XMLStrategy());
+                try {
+                    persistenceManager.save(graphModel, file);
+                    lblStatus.setText("Saved XML: " + file.getName());
+                } catch (IOException e) {
+                    lblStatus.setText("Error saving XML: " + e.getMessage());
+                }
+            }
+        });
+        menuLoadXml.setOnAction(evt -> {
+            FileChooser fc = new FileChooser();
+            fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("XML Files","*.xml"));
+            File file = fc.showOpenDialog(canvasPane.getScene().getWindow());
+            if (file != null) {
+                persistenceManager.setSerializer(new XMLStrategy());
+                try {
+                    persistenceManager.load(graphModel, file, () -> clearAll());
+                    lblStatus.setText("Loaded XML: " + file.getName());
+                } catch (IOException e) {
+                    lblStatus.setText("Error loading XML: " + e.getMessage());
+                }
+            }
+        });
+
+        // Export PNG
+        menuExportPng.setOnAction(evt -> {
+            FileChooser fc = new FileChooser();
+            fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("PNG Files","*.png"));
+            File file = fc.showSaveDialog(canvasPane.getScene().getWindow());
+            if (file != null) {
+                WritableImage image = contentGroup.snapshot(new SnapshotParameters(), null);
+                try {
+                    ImageIO.write(SwingFXUtils.fromFXImage(image, null), "png", file);
+                    lblStatus.setText("Exported PNG: " + file.getName());
+                } catch (IOException e) {
+                    lblStatus.setText("Error exporting PNG: " + e.getMessage());
+                }
+            }
+        });
+        // Export SVG
+        menuExportSvg.setOnAction(evt -> {
+            FileChooser fc = new FileChooser();
+            fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("SVG Files","*.svg"));
+            File file = fc.showSaveDialog(canvasPane.getScene().getWindow());
+            if (file != null) {
+                try {
+                    String svg = SvgExporter.exportGraph(graphModel);
+                    // Thay Files.writeString bằng BufferedWriter để tương thích Java < 11
+                    Path path = file.toPath();
+                    try (BufferedWriter writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
+                        writer.write(svg);
+                    }
+                    lblStatus.setText("Exported SVG: " + file.getName());
+                } catch (IOException e) {
+                    lblStatus.setText("Error exporting SVG: " + e.getMessage());
+                }
+            }
+        });
+
+        // Layout menu
+        menuLayoutTree.setOnAction(evt -> applyLayout(new TreeLayoutStrategy()));
+        menuLayoutRadial.setOnAction(evt -> applyLayout(new RadialLayoutStrategy()));
+    }
+
+    private void clearAll() {
+
+        graphModel.getNodes().clear();
+        graphModel.getEdges().clear();
+
+        commandManager.clear();
+
+    }
+
+    private void applyLayout(com.example.diagram_mindmap_builder.layout.LayoutStrategy strategy) {
+        Map<NodeModel, Point2D> oldPos = new java.util.HashMap<>();
+        for (NodeModel node : graphModel.getNodes()) oldPos.put(node, new Point2D(node.getX(), node.getY()));
+        Map<NodeModel, Point2D> newPos = strategy.applyLayout(graphModel);
+        BatchMoveCommand cmd = new BatchMoveCommand(oldPos, newPos);
+        commandManager.executeCommand(cmd);
+        lblStatus.setText("Applied layout: " + strategy.getClass().getSimpleName());
     }
 
     // Tạo NodeView và add vào contentGroup khi GraphModel thêm node

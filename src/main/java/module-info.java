@@ -10,6 +10,9 @@ module com.example.diagram_mindmap_builder {
     requires org.kordamp.bootstrapfx.core;
     requires eu.hansolo.tilesfx;
     requires com.almasb.fxgl.all;
+    requires com.fasterxml.jackson.databind;
+    requires com.fasterxml.jackson.dataformat.xml;
+    requires javafx.swing;
 
     opens com.example.diagram_mindmap_builder to javafx.fxml, javafx.graphics;
     opens com.example.diagram_mindmap_builder.controller to javafx.fxml;
