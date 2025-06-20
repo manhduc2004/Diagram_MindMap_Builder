@@ -18,6 +18,7 @@
 <?import javafx.scene.layout.Pane?>
 <?import javafx.scene.layout.VBox?>
 
+<?import javafx.scene.control.SeparatorMenuItem?>
 <BorderPane xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml"
             fx:controller="com.example.diagram_mindmap_builder.controller.MainController">
 
@@ -31,9 +32,10 @@
                 <MenuItem text="Exit"/>
             </Menu>
             <Menu text="Edit">
-                <MenuItem text="Undo"/>
-                <MenuItem text="Redo"/>
-                <MenuItem text="Delete"/>
+                <MenuItem fx:id="menuUndo" text="Undo" accelerator="CTRL+Z"/>
+                <MenuItem fx:id="menuRedo" text="Redo" accelerator="CTRL+Y"/>
+                <SeparatorMenuItem/>
+                <MenuItem fx:id="menuDelete" text="Delete" accelerator="DELETE"/>
             </Menu>
             <Menu text="View">
                 <MenuItem text="Zoom In"/>
@@ -55,6 +57,7 @@
             <Button fx:id="btnAddCircle" text="Add Circle" maxWidth="Infinity"/>
             <Button fx:id="btnAddRect" text="Add Rectangle" maxWidth="Infinity"/>
             <Button fx:id="btnDelete" text="Delete" maxWidth="Infinity"/>
+            <Button fx:id="btnConnect" text="Connect Nodes" maxWidth="Infinity"/>
             <Separator/>
             <Label text="Zoom:"/>
             <HBox spacing="5">

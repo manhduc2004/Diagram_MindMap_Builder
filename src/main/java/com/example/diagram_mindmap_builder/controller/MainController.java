@@ -1,15 +1,21 @@
 package com.example.diagram_mindmap_builder.controller;
 
 import com.example.diagram_mindmap_builder.builder.NodeDirector;
+import com.example.diagram_mindmap_builder.command.*;
 import com.example.diagram_mindmap_builder.factory.NodeFactory;
+import com.example.diagram_mindmap_builder.model.EdgeModel;
+import com.example.diagram_mindmap_builder.model.GraphModel;
 import com.example.diagram_mindmap_builder.model.NodeModel;
 import com.example.diagram_mindmap_builder.model.NodeType;
 import com.example.diagram_mindmap_builder.view.NodeView;
 import javafx.application.Platform;
+import javafx.beans.binding.Binding;
+import javafx.beans.binding.Bindings;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleIntegerProperty;
+import javafx.collections.ListChangeListener;
 import javafx.fxml.FXML;
 import javafx.geometry.Point2D;
 import javafx.scene.Group;
@@ -18,6 +24,7 @@ import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.*;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.Pane;
+import javafx.scene.shape.Line;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.paint.Color;
 
@@ -25,11 +32,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class MainController {
-    
+
     @FXML private Pane canvasPane;
     @FXML private Group contentGroup;
 
-    @FXML private Button btnAddCircle, btnAddRect, btnDelete, btnZoomIn, btnZoomOut;
+    @FXML private Button btnAddCircle, btnAddRect, btnDelete, btnZoomIn, btnZoomOut, btnConnect;
 
     @FXML private Label lblNoSelection, lblStatus, lblZoomLevel, lblCoordinates;;
     @FXML private TextField tfLabel;
@@ -38,6 +45,10 @@ public class MainController {
     @FXML private ComboBox<String> cbShape;
     @FXML private CheckBox chkSnap;
     @FXML private Spinner<Integer> spGridSize;
+    @FXML private MenuItem menuUndo, menuRedo, menuDelete;
+
+    private GraphModel graphModel;
+    private CommandManager commandManager;
 
     private IntegerProperty gridSizePop;
     private Canvas gridCanvas;
@@ -47,10 +58,38 @@ public class MainController {
     private final IntegerProperty gridSize = new SimpleIntegerProperty(20);
 
     private final Map<String, NodeView> nodeViewMap = new HashMap<>();
+    private final Map<String, Line> edgeViewMap = new HashMap<>();
     private NodeView selectedNodeView = null;
 
+    private boolean connectMode = false;
+    private NodeView connectSource = null;
     @FXML
     public void initialize() {
+        graphModel = new GraphModel();
+        commandManager = new CommandManager();
+
+        // Thiết lập menu Undo/Redo/Delete
+        menuUndo.disableProperty().bind(commandManager.canUndoProperty().not());
+        menuRedo.disableProperty().bind(commandManager.canRedoProperty().not());
+        menuUndo.setOnAction(e -> {
+            commandManager.undo();
+            lblStatus.setText("Undid: " + commandManager.peekRedoName());
+        });
+        menuRedo.setOnAction(e -> {
+            commandManager.redo();
+            lblStatus.setText("Redid: " + commandManager.peekUndoName());
+        });
+        menuDelete.disableProperty().bind(Bindings.createBooleanBinding(() -> selectedNodeView == null));
+        menuDelete.setOnAction(e -> {
+            if (selectedNodeView != null) {
+                DeleteNodeCommand cmd = new DeleteNodeCommand(graphModel, selectedNodeView.getModel());
+                commandManager.executeCommand(cmd);
+                selectedNodeView = null;
+                clearSelection();
+                lblStatus.setText("Deleted Node");
+            }
+        });
+
         // Debug injection: đảm bảo không null
         System.out.println("canvasPane=" + canvasPane + ", contentGroup=" + contentGroup + ", spFontSize=" + spFontSize);
 
@@ -77,6 +116,7 @@ public class MainController {
         gridCanvas.heightProperty().bind(canvasPane.heightProperty());
         canvasPane.getChildren().add(0, gridCanvas);
         redrawGrid();
+
 
         // Khi resize canvasPane, redraw grid và clamp nodes
         canvasPane.widthProperty().addListener((obs, o, n) -> {
@@ -124,37 +164,292 @@ public class MainController {
             }
         });
 
-        // Add/Delete node
-        btnAddCircle.setOnAction(evt -> addNode(NodeType.Circle));
-        btnAddRect.setOnAction(evt -> addNode(NodeType.Rectangle));
-        btnDelete.setOnAction(evt -> {
-            if (selectedNodeView != null) deleteSelectedNode();
-            else lblStatus.setText("No node selected");
+        // Listener GraphModel nodes: tạo/remove NodeView
+        graphModel.getNodes().addListener((ListChangeListener<NodeModel>) change -> {
+            while (change.next()){
+                if(change.wasAdded()) {
+                    for (NodeModel m : change.getAddedSubList()) {
+                        createNodeView(m);
+                    }
+                }
+                if(change.wasRemoved()) {
+                    for (NodeModel m : change.getRemoved()) {
+                        removeNodeView(m);
+                    }
+                }
+            }
+        });
+        // Listener GraphModel egdes: tạo/remove EdgeView
+        graphModel.getEdges().addListener((ListChangeListener<EdgeModel>) change -> {
+            while (change.next()) {
+                if(change.wasAdded()) {
+                    for (EdgeModel m : change.getAddedSubList()) {
+                        createEdgeView(m);
+                    }
+                }
+                if(change.wasRemoved()) {
+                    for (EdgeModel m : change.getRemoved()) {
+                        removeEdgeView(m);
+                    }
+                }
+            }
         });
 
-        // Property pane listeners
-        tfLabel.textProperty().addListener((obs, old, ni) -> {
-            if (selectedNodeView != null) selectedNodeView.getModel().setText(ni);
+        // Add/Delete node
+        btnAddCircle.setOnAction(evt -> {
+            double cx = computeCenterX();
+            double cy = computeCenterY();
+            CreateNodeCommand cmd = new CreateNodeCommand(graphModel, NodeType.Circle);
+            commandManager.executeCommand(cmd);
+            NodeModel newNode = cmd.getNode();
+            newNode.setX(cx);
+            newNode.setY(cy);
+            lblStatus.setText("Added Circle");
         });
-        spFontSize.valueProperty().addListener((obs, old, ni) -> {
-            if (selectedNodeView != null && ni != null) selectedNodeView.getModel().setFontSize(ni);
+        btnAddRect.setOnAction(evt -> {
+            double cx = computeCenterX();
+            double cy = computeCenterY();
+            CreateNodeCommand cmd = new CreateNodeCommand(graphModel, NodeType.Rectangle);
+            commandManager.executeCommand(cmd);
+            NodeModel newNode = cmd.getNode();
+            newNode.setX(cx);
+            newNode.setY(cy);
+            lblStatus.setText("Added Rectangle");
+        });
+        btnDelete.setOnAction(evt -> {
+            if (selectedNodeView != null) {
+                DeleteNodeCommand cmd = new DeleteNodeCommand(graphModel, selectedNodeView.getModel());
+                commandManager.executeCommand(cmd);
+                selectedNodeView = null;
+                clearSelection();
+                lblStatus.setText("Deleted Node");
+            } else {
+                lblStatus.setText("No node selected");
+
+            }
+        });
+        btnConnect.setOnAction(evt -> {
+            connectMode = !connectMode;
+            connectSource = null;
+            if(connectMode) {
+                lblStatus.setText("Connect mode: select source node");
+                btnConnect.setText("Connect");
+            }else{
+                lblStatus.setText("Connect mode canceled");
+                btnConnect.setStyle("");
+            }
+        });
+
+        // Property pane listeners: gom lệnh khi focus lost hoặc action
+        tfLabel.focusedProperty().addListener((obs, oldF, newF) -> {
+            if (!newF && selectedNodeView != null) {
+                String oldText = selectedNodeView.getModel().getText();
+                String newText = tfLabel.getText();
+                if (!newText.equals(oldText)) {
+                    EditTextCommand cmd = new EditTextCommand(selectedNodeView.getModel(), oldText, newText);
+                    commandManager.executeCommand(cmd);
+                    lblStatus.setText("Edited text");
+                }
+            }
+        });
+        spFontSize.focusedProperty().addListener((obs, oldF, newF) -> {
+            if (!newF && selectedNodeView != null) {
+                double oldVal = selectedNodeView.getModel().getFontSize();
+                double newVal = spFontSize.getValue();
+                if (newVal != oldVal) {
+                    EditFontSizeCommand cmd = new EditFontSizeCommand(selectedNodeView.getModel(), oldVal, newVal);
+                    commandManager.executeCommand(cmd);
+                    lblStatus.setText("Edited font size");
+                }
+            }
         });
         cpFill.setOnAction(evt -> {
-            if (selectedNodeView != null) selectedNodeView.getModel().setFillColor(cpFill.getValue());
+            if (selectedNodeView != null) {
+                Color oldC = selectedNodeView.getModel().getFillColor();
+                Color newC = cpFill.getValue();
+                if (!newC.equals(oldC)) {
+                    EditFillColorCommand cmd = new EditFillColorCommand(selectedNodeView.getModel(), oldC, newC);
+                    commandManager.executeCommand(cmd);
+                    lblStatus.setText("Edited fill color");
+                }
+            }
         });
         cpStroke.setOnAction(evt -> {
-            if (selectedNodeView != null) selectedNodeView.getModel().setStrokeColor(cpStroke.getValue());
+            if (selectedNodeView != null) {
+                Color oldC = selectedNodeView.getModel().getStrokeColor();
+                Color newC = cpStroke.getValue();
+                if (!newC.equals(oldC)) {
+                    EditStrokeColorCommand cmd = new EditStrokeColorCommand(selectedNodeView.getModel(), oldC, newC);
+                    commandManager.executeCommand(cmd);
+                    lblStatus.setText("Edited stroke color");
+                }
+            }
         });
-        spStrokeWidth.valueProperty().addListener((obs, old, ni) -> {
-            if (selectedNodeView != null && ni != null) selectedNodeView.getModel().setStrokeWidth(ni);
+        spStrokeWidth.focusedProperty().addListener((obs, oldF, newF) -> {
+            if (!newF && selectedNodeView != null) {
+                double oldVal = selectedNodeView.getModel().getStrokeWidth();
+                double newVal = spStrokeWidth.getValue();
+                if (newVal != oldVal) {
+                    EditStrokeWidthCommand cmd = new EditStrokeWidthCommand(selectedNodeView.getModel(), oldVal, newVal);
+                    commandManager.executeCommand(cmd);
+                    lblStatus.setText("Edited stroke width");
+                }
+            }
         });
-        cbShape.valueProperty().addListener((obs, old, ni) -> {
-            if (selectedNodeView != null && ni != null && !ni.equals(old)) {
-                changeShapeOfSelected(ni);
+        cbShape.valueProperty().addListener((obs, oldV, newV) -> {
+            if (selectedNodeView != null && newV != null && !newV.equals(oldV)) {
+                NodeType newType = newV.equals("Circle") ? NodeType.Circle : NodeType.Rectangle;
+                ChangeShapeCommand cmd = new ChangeShapeCommand(graphModel, selectedNodeView.getModel(), newType);
+                commandManager.executeCommand(cmd);
+                lblStatus.setText("Changed shape");
             }
         });
     }
 
+    // Tạo NodeView và add vào contentGroup khi GraphModel thêm node
+    private void createNodeView(NodeModel model) {
+        NodeView view = new NodeView(model, canvasPane, contentGroup, snapToGrid, gridSizePop, () -> zoomFactor);
+        view.setOnMouseClicked(evt -> {
+            if (connectMode) {
+                handleConnectClick(view);
+                evt.consume();
+                return;
+            }
+            selectNodeView(view);
+            evt.consume();
+        });
+
+        view.addEventHandler(MouseEvent.MOUSE_PRESSED, evt -> {
+            view.getProperties().put("oldX", model.getX());
+            view.getProperties().put("oldY", model.getY());
+        });
+        view.addEventHandler(MouseEvent.MOUSE_RELEASED, evt -> {
+            double oldX = (double) view.getProperties().getOrDefault("oldX", model.getX());
+            double oldY = (double) view.getProperties().getOrDefault("oldY", model.getY());
+            double newX = model.getX();
+            double newY = model.getY();
+            if (oldX != newX || oldY != newY) {
+                MoveNodeCommand cmd = new MoveNodeCommand(model, oldX, oldY, newX, newY);
+                commandManager.executeCommand(cmd);
+                lblStatus.setText("Moved Node");
+            }
+        });
+        contentGroup.getChildren().add(view);
+        nodeViewMap.put(model.getId(), view);
+    }
+
+    private void removeNodeView(NodeModel model) {
+        NodeView view = nodeViewMap.remove(model.getId());
+        if (view != null) {
+            contentGroup.getChildren().remove(view);
+            if (selectedNodeView == view) {
+                selectedNodeView = null;
+                clearSelection();
+            }
+        }
+    }
+
+    // Xử lý click khi trong connectMode
+    private void handleConnectClick(NodeView clickedView) {
+        if (connectSource == null) {
+            connectSource = clickedView;
+            connectSource.setSelected(true);
+            lblStatus.setText("Source selected, now select target");
+        } else {
+            if (clickedView == connectSource) {
+                // Bỏ chọn source
+                connectSource.setSelected(false);
+                connectSource = null;
+                lblStatus.setText("Select source node");
+            } else {
+                // Chọn target, thực thi CreateEdgeCommand
+                NodeModel sourceModel = connectSource.getModel();
+                NodeModel targetModel = clickedView.getModel();
+                CreateEdgeCommand cmd = new CreateEdgeCommand(graphModel, sourceModel, targetModel);
+                commandManager.executeCommand(cmd);
+                lblStatus.setText("Connected nodes");
+                // Reset trạng thái connect
+                connectSource.setSelected(false);
+                connectSource = null;
+                connectMode = false;
+                btnConnect.setStyle("");
+            }
+        }
+    }
+
+    // Tạo EdgeView (Line) khi GraphModel thêm edge
+    private void createEdgeView(EdgeModel edge) {
+        NodeModel src = edge.getSource();
+        NodeModel tgt = edge.getTarget();
+        Line line = new Line();
+        // Bind start/end tới model.x/y
+        line.startXProperty().bind(src.xProperty());
+        line.startYProperty().bind(src.yProperty());
+        line.endXProperty().bind(tgt.xProperty());
+        line.endYProperty().bind(tgt.yProperty());
+        line.setStroke(Color.GRAY);
+        line.setStrokeWidth(2);
+        // Thêm vào index 0 để nằm dưới NodeView
+        contentGroup.getChildren().add(0, line);
+        edgeViewMap.put(edge.getId(), line);
+        // Context menu để xóa edge
+        line.setOnMouseClicked(evt -> {
+            if (evt.isSecondaryButtonDown()) {
+                ContextMenu menu = new ContextMenu();
+                MenuItem miDel = new MenuItem("Delete Connection");
+                miDel.setOnAction(ae -> {
+                    DeleteEdgeCommand delCmd = new DeleteEdgeCommand(graphModel, edge);
+                    commandManager.executeCommand(delCmd);
+                    lblStatus.setText("Deleted Edge");
+                });
+                menu.getItems().add(miDel);
+                menu.show(line, evt.getScreenX(), evt.getScreenY());
+                evt.consume();
+            }
+        });
+    }
+
+    private void removeEdgeView(EdgeModel edge) {
+        Line line = edgeViewMap.remove(edge.getId());
+        if (line != null) {
+            contentGroup.getChildren().remove(line);
+        }
+    }
+
+    // Xử lý chọn NodeView
+    private void selectNodeView(NodeView view) {
+        if (selectedNodeView != null) {
+            selectedNodeView.setSelected(false);
+        }
+        selectedNodeView = view;
+        selectedNodeView.setSelected(true);
+
+        NodeModel m = view.getModel();
+        lblNoSelection.setText("Selected: " + m.getType() +
+                String.format(" (%.1f,%.1f)", m.getX(), m.getY()));
+        setPropertyPaneDisabled(false);
+
+        tfLabel.setText(m.getText());
+        spFontSize.getValueFactory().setValue(m.getFontSize());
+        cpFill.setValue(m.getFillColor());
+        cpStroke.setValue(m.getStrokeColor());
+        spStrokeWidth.getValueFactory().setValue(m.getStrokeWidth());
+        if (m.getType() == NodeType.Circle) {
+            cbShape.setValue("Circle");
+        } else {
+            cbShape.setValue("Rectangle");
+        }
+    }
+
+    private void clearSelection() {
+        if (selectedNodeView != null) {
+            selectedNodeView.setSelected(false);
+        }
+        selectedNodeView = null;
+        lblNoSelection.setText("No selection");
+        setPropertyPaneDisabled(true);
+        lblStatus.setText("Ready");
+    }
     /** Vẽ grid tĩnh */
     private void redrawGrid() {
         double w = canvasPane.getWidth();
@@ -187,144 +482,26 @@ public class MainController {
         lblZoomLevel.setText(String.format("Zoom: %.0f%%", zoomFactor * 100));
     }
 
-    /** Thêm node mới */
-    private void addNode(NodeType type) {
-        NodeModel model = NodeDirector.makeDefault(type);
-//        model.setText(type.name());
-//        model.setFillColor(Color.LIGHTBLUE);
-//        model.setStrokeColor(Color.DARKBLUE);
-//        model.setStrokeWidth(2.0);
-//        model.setFontSize(12);
-
-
-        //debug
-        model.xProperty().addListener((obs, oldVal, newVal) -> {
-            System.out.println("[Model] xProperty changed for id=" + model.getId()
-                    + " from " + String.format("%.1f", oldVal.doubleValue())
-                    + " to " + String.format("%.1f", newVal.doubleValue()));
-        });
-        model.yProperty().addListener((obs, oldVal, newVal) -> {
-            System.out.println("[Model] yProperty changed for id=" + model.getId()
-                    + " from " + String.format("%.1f", oldVal.doubleValue())
-                    + " to " + String.format("%.1f", newVal.doubleValue()));
-        });
-
-        NodeView view = new NodeView(model, canvasPane, contentGroup,chkSnap.selectedProperty(), gridSizePop, () -> zoomFactor);
-        // Gắn handler chọn node
-        view.setOnMouseClicked(evt -> {
-            selectNodeView(view);
-            evt.consume();
-        });
-
-        contentGroup.getChildren().add(view);
-        nodeViewMap.put(model.getId(), view);
-
-        // Đặt vị trí giữa canvas theo zoom
-        Platform.runLater(() -> {
-            double viewW = canvasPane.getWidth();
-            double viewH = canvasPane.getHeight();
-            double halfW = model.getWidth() / 2.0;
-            double halfH = (type == NodeType.Circle) ? halfW : (model.getHeight() / 2.0);
-            double centerX, centerY;
-            if (zoomFactor >= 1.0) {
-                centerX = clamp(viewW / zoomFactor / 2.0, halfW, viewW / zoomFactor - halfW);
-                centerY = clamp(viewH / zoomFactor / 2.0, halfH, viewH / zoomFactor - halfH);
-            } else {
-                centerX = clamp(viewW / 2.0, halfW, viewW - halfW);
-                centerY = clamp(viewH / 2.0, halfH, viewH - halfH);
-            }
-            if (snapToGrid.get()) {
-                centerX = Math.round(centerX / gridSize.get()) * gridSize.get();
-                centerY = Math.round(centerY / gridSize.get()) * gridSize.get();
-                if (zoomFactor >= 1.0) {
-                    centerX = clamp(centerX, halfW, viewW / zoomFactor - halfW);
-                    centerY = clamp(centerY, halfH, viewH / zoomFactor - halfH);
-                } else {
-                    centerX = clamp(centerX, halfW, viewW - halfW);
-                    centerY = clamp(centerY, halfH, viewH - halfH);
-                }
-            }
-            model.setX(centerX);
-            model.setY(centerY);
-            lblStatus.setText("Added " + type.name());
-        });
-    }
-
-    /** Chọn node: highlight và populate properties */
-    private void selectNodeView(NodeView view) {
-        if (selectedNodeView != null) selectedNodeView.setSelected(false);
-        selectedNodeView = view;
-        selectedNodeView.setSelected(true);
-
-        NodeModel m = view.getModel();
-        lblNoSelection.setText("Selected: " + m.getType() +
-                String.format(" (%.1f,%.1f)", m.getX(), m.getY()));
-        setPropertyPaneDisabled(false);
-
-        tfLabel.setText(m.getText());
-        spFontSize.getValueFactory().setValue(m.getFontSize());
-        cpFill.setValue(m.getFillColor());
-        cpStroke.setValue(m.getStrokeColor());
-        spStrokeWidth.getValueFactory().setValue(m.getStrokeWidth());
-        if (m.getType() == NodeType.Circle) {
-            cbShape.setValue("Circle");
+    // Tính tâm canvas để đặt node mới
+    private double computeCenterX() {
+        double viewW = canvasPane.getWidth();
+        double halfW = 40; // mặc định bán kính/tựa node
+        if (zoomFactor >= 1.0) {
+            return clamp(viewW / zoomFactor / 2.0, halfW, viewW / zoomFactor - halfW);
         } else {
-            cbShape.setValue("Rectangle");
+            return clamp(viewW / 2.0, halfW, viewW - halfW);
+        }
+    }
+    private double computeCenterY() {
+        double viewH = canvasPane.getHeight();
+        double halfH = 20;
+        if (zoomFactor >= 1.0) {
+            return clamp(viewH / zoomFactor / 2.0, halfH, viewH / zoomFactor - halfH);
+        } else {
+            return clamp(viewH / 2.0, halfH, viewH - halfH);
         }
     }
 
-    /** Clear selection */
-    private void clearSelection() {
-        if (selectedNodeView != null) selectedNodeView.setSelected(false);
-        selectedNodeView = null;
-        lblNoSelection.setText("No selection");
-        setPropertyPaneDisabled(true);
-        lblStatus.setText("Ready");
-    }
-
-    /** Xóa node đã chọn */
-    private void deleteSelectedNode() {
-        if (selectedNodeView != null) {
-            NodeModel m = selectedNodeView.getModel();
-            contentGroup.getChildren().remove(selectedNodeView);
-            nodeViewMap.remove(m.getId());
-            selectedNodeView = null;
-            clearSelection();
-        }
-    }
-
-    /** Đổi shape node đã chọn */
-    private void changeShapeOfSelected(String shapeName) {
-        if (selectedNodeView == null) return;
-        NodeModel oldModel = selectedNodeView.getModel();
-        NodeType oldType = oldModel.getType();
-        NodeType newType = shapeName.equals("Circle") ? NodeType.Circle : NodeType.Rectangle;
-        if (oldType == newType) return;
-
-        NodeModel newModel = NodeDirector.makeDefault(newType);
-        newModel.setX(oldModel.getX());
-        newModel.setY(oldModel.getY());
-        newModel.setWidth(oldModel.getWidth());
-        if (newType == NodeType.Rectangle) newModel.setHeight(oldModel.getHeight());
-        newModel.setText(oldModel.getText());
-        newModel.setFillColor(oldModel.getFillColor());
-        newModel.setStrokeColor(oldModel.getStrokeColor());
-        newModel.setStrokeWidth(oldModel.getStrokeWidth());
-        newModel.setFontSize(oldModel.getFontSize());
-
-        NodeView newView = new NodeView(newModel, canvasPane, contentGroup,chkSnap.selectedProperty(), gridSizePop, () -> zoomFactor);
-        newView.setOnMouseClicked(evt -> {
-            selectNodeView(newView);
-            evt.consume();
-        });
-
-        contentGroup.getChildren().remove(selectedNodeView);
-        contentGroup.getChildren().add(newView);
-        nodeViewMap.remove(oldModel.getId());
-        nodeViewMap.put(newModel.getId(), newView);
-        selectedNodeView = newView;
-        selectNodeView(newView);
-    }
 
     /** Clamp 1 node model sang trong vùng visible */
     private void clampNode(NodeModel m) {
@@ -356,46 +533,6 @@ public class MainController {
     }
 
     /** Clamp tất cả node để không vượt ra ngoài visible region khi zoom in/out */
-//    private void clampAllNodes() {
-//        double viewW = canvasPane.getWidth();
-//        double viewH = canvasPane.getHeight();
-//        for (NodeView nv : nodeViewMap.values()) {
-//            NodeModel m = nv.getModel();
-//
-//            double oldX = m.getX(), oldY = m.getY();
-//
-//
-//            double halfW = m.getWidth() / 2.0;
-//            double halfH = (m.getType() == NodeType.Circle) ? halfW : (m.getHeight() / 2.0);
-//            double clampedX, clampedY;
-//            if (zoomFactor >= 1.0) {
-//                clampedX = clamp(m.getX(), halfW, viewW / zoomFactor - halfW);
-//                clampedY = clamp(m.getY(), halfH, viewH / zoomFactor - halfH);
-//            } else {
-//                clampedX = clamp(m.getX(), halfW, viewW - halfW);
-//                clampedY = clamp(m.getY(), halfH, viewH - halfH);
-//            }
-//            if (snapToGrid.get()) {
-//                clampedX = Math.round(clampedX / gridSize.get()) * gridSize.get();
-//                clampedY = Math.round(clampedY / gridSize.get()) * gridSize.get();
-//                if (zoomFactor >= 1.0) {
-//                    clampedX = clamp(clampedX, halfW, viewW / zoomFactor - halfW);
-//                    clampedY = clamp(clampedY, halfH, viewH / zoomFactor - halfH);
-//                } else {
-//                    clampedX = clamp(clampedX, halfW, viewW - halfW);
-//                    clampedY = clamp(clampedY, halfH, viewH - halfH);
-//                }
-//            }
-//            if (clampedX != oldX || clampedY != oldY) {
-//                System.out.println("[clampAllNodes] Adjust node id=" + m.getId()
-//                        + " from (" + String.format("%.1f", oldX) + "," + String.format("%.1f", oldY) + ")"
-//                        + " to (" + String.format("%.1f", clampedX) + "," + String.format("%.1f", clampedY) + ")");
-//            }
-//            m.setX(clampedX);
-//            m.setY(clampedY);
-//        }
-//    }
-
     private double clamp(double v, double min, double max) {
         if (v < min) return min;
         if (v > max) return max;
