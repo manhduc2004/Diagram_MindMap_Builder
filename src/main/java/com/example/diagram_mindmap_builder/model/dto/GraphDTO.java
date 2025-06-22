@@ -15,4 +15,8 @@ public class GraphDTO {
     @JacksonXmlElementWrapper(localName = "Edges")
     @JacksonXmlProperty(localName = "Edge")
     public List<EdgeDTO> edges;
+
+    // Constructor no-arg public rõ ràng
+    public GraphDTO() {
+    }
 }

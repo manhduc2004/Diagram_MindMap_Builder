@@ -9,4 +9,8 @@ public class EdgeDTO {
     public String sourceId;
     @JacksonXmlProperty(localName = "TargetId")
     public String targetId;
+
+    public EdgeDTO() {
+
+    }
 }

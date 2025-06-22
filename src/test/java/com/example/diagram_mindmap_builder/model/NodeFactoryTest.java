@@ -1,5 +1,6 @@
 package com.example.diagram_mindmap_builder.model;
 
+import com.example.diagram_mindmap_builder.builder.NodeDirector;
 import com.example.diagram_mindmap_builder.factory.NodeFactory;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
@@ -7,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class NodeFactoryTest {
     @Test
     public void testCreateNode(){
-        NodeModel node = NodeFactory.createNode(NodeType.Circle);
+        NodeModel node = NodeDirector.makeDefault(NodeType.Circle);
 
         // đảm bảo Factory thực sự trả về một object, không phải null
         assertNotNull(node, "Node không được null");
@@ -27,7 +28,7 @@ public class NodeFactoryTest {
 
     @Test
     public void testCreateRectangleNode() {
-        NodeModel node = NodeFactory.createNode(NodeType.Rectangle);
+        NodeModel node = NodeDirector.makeDefault(NodeType.Rectangle);
         assertNotNull(node);
         assertTrue(node instanceof RectangleNodeModel);
         assertEquals(NodeType.Rectangle, node.getType());

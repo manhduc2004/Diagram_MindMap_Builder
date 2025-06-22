@@ -4,6 +4,7 @@ import com.example.diagram_mindmap_builder.builder.NodeBuilder;
 import com.example.diagram_mindmap_builder.factory.NodeFactory;
 import com.example.diagram_mindmap_builder.model.NodeModel;
 import com.example.diagram_mindmap_builder.model.NodeType;
+import javafx.scene.Node;
 import javafx.scene.paint.Color;
 
 public class NodeDirector {

@@ -12,10 +12,12 @@ public class JSONStrategy implements Serializer {
     public JSONStrategy() {
         mapper = new ObjectMapper();
         mapper.enable(SerializationFeature.INDENT_OUTPUT);
+        mapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
     public void save(GraphDTO graphDTO, File file) throws IOException {
         mapper.writeValue(file, graphDTO);
+        mapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
     public GraphDTO load(File file) throws IOException {

@@ -11,10 +11,14 @@ public class XMLStrategy  implements Serializer {
     public XMLStrategy() {
         xmlMapper = new XmlMapper();
         xmlMapper.writerWithDefaultPrettyPrinter();
+        xmlMapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
     }
 
     public void save(GraphDTO graphDTO, File file) throws IOException {
         xmlMapper.writeValue(file, graphDTO);
+        xmlMapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
     }
     public GraphDTO load(File file) throws IOException {
         return xmlMapper.readValue(file, GraphDTO.class);

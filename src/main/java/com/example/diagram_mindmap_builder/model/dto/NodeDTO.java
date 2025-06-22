@@ -8,11 +8,11 @@ public class NodeDTO {
     @JacksonXmlProperty(localName = "Type")
     public String type;
     @JacksonXmlProperty(localName = "X")
-    public double x;
+    public Double x;
     @JacksonXmlProperty(localName = "Y")
-    public double y;
+    public Double y;
     @JacksonXmlProperty(localName = "Width")
-    public double width;
+    public Double width;
     @JacksonXmlProperty(localName = "Height")
     public Double height; // null nếu Circle
     @JacksonXmlProperty(localName = "Text")
@@ -22,7 +22,10 @@ public class NodeDTO {
     @JacksonXmlProperty(localName = "StrokeColor")
     public String strokeColor;
     @JacksonXmlProperty(localName = "StrokeWidth")
-    public double strokeWidth;
+    public Double strokeWidth;
     @JacksonXmlProperty(localName = "FontSize")
-    public double fontSize;
+    public Double fontSize;
+
+    public NodeDTO() {
+    }
 }

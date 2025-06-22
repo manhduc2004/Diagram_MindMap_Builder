@@ -13,10 +13,12 @@ module com.example.diagram_mindmap_builder {
     requires com.fasterxml.jackson.databind;
     requires com.fasterxml.jackson.dataformat.xml;
     requires javafx.swing;
+    requires java.logging;
 
     opens com.example.diagram_mindmap_builder to javafx.fxml, javafx.graphics;
     opens com.example.diagram_mindmap_builder.controller to javafx.fxml;
     opens com.example.diagram_mindmap_builder.view to javafx.fxml;
+    opens com.example.diagram_mindmap_builder.model.dto to com.fasterxml.jackson.databind, com.fasterxml.jackson.dataformat.xml;
 
     exports com.example.diagram_mindmap_builder;
     exports com.example.diagram_mindmap_builder.controller;
